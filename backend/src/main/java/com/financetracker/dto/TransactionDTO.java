@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -23,7 +24,7 @@ public class TransactionDTO {
     private Long id;
     
     @NotNull(message = "Account ID is required")
-    private Long accountId;
+    private UUID accountId;
     
     @NotNull(message = "Category ID is required")
     private Long categoryId;

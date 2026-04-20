@@ -9,23 +9,24 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface AccountRepository extends JpaRepository<Account, Long> {
-    List<Account> findByUserId(Long userId);
-    List<Account> findByUserIdAndIsActive(Long userId, Boolean isActive);
-    Optional<Account> findByIdAndUserId(Long id, Long userId);
+public interface AccountRepository extends JpaRepository<Account, UUID> {
+    List<Account> findByUserId(UUID userId);
+    List<Account> findByUserIdAndIsActive(UUID userId, Boolean isActive);
+    Optional<Account> findByIdAndUserId(UUID id, UUID userId);
 
-    List<Account> findByUserIdAndAccountType(Long userId, AccountType accountType);
+    List<Account> findByUserIdAndAccountType(UUID userId, AccountType accountType);
     
     Optional<Account> findByAccountNumber(String accountNumber);
-    Optional<Account> findByAccountNumberAndUserId(String accountNumber, Long userId);
+    Optional<Account> findByAccountNumberAndUserId(String accountNumber, UUID userId);
     
     boolean existsByAccountNumber(String accountNumber);
-    boolean existsByIdAndUserId(Long id, Long userId);
+    boolean existsByIdAndUserId(UUID id, UUID userId);
     
     @Query("SELECT COUNT(a) FROM Account a WHERE a.user.id = :userId")
-    long countByUserId(@Param("userId") Long userId);
+    long countByUserId(@Param("userId") UUID userId);
     
-    List<Account> findByUserIdAndIsActiveOrderByAccountNameAsc(Long userId, Boolean isActive);
+    List<Account> findByUserIdAndIsActiveOrderByAccountNameAsc(UUID userId, Boolean isActive);
 }

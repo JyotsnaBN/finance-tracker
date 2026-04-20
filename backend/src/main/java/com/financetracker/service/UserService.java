@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -20,7 +21,7 @@ public class UserService {
     private final EntityMapper entityMapper;
     
     @Transactional(readOnly = true)
-    public UserDTO getUserById(Long id) {
+    public UserDTO getUserById(UUID id) {
         log.debug("Fetching user with id: {}", id);
         User user = userRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
@@ -46,7 +47,7 @@ public class UserService {
         User user = User.builder()
             .username(dto.getUsername())
             .email(dto.getEmail())
-            .passwordHash(dto.getPasswordHash())
+            .passwordHash(dto.getPassword())
             .build();
         
         User saved = userRepository.save(user);
@@ -56,7 +57,7 @@ public class UserService {
     }
     
     @Transactional
-    public UserDTO updateUser(Long id, UserDTO dto) {
+    public UserDTO updateUser(UUID id, UserDTO dto) {
         log.info("Updating user with id: {}", id);
         
         User existing = userRepository.findById(id)
@@ -77,7 +78,7 @@ public class UserService {
     }
     
     @Transactional
-    public void deleteUser(Long id) {
+    public void deleteUser(UUID id) {
         log.info("Deleting user with id: {}", id);
         
         if (!userRepository.existsById(id)) {

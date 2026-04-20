@@ -11,15 +11,16 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class AccountDTO {
-    private Long id;
+    private UUID id;
     
-    private Long userId;
+    private UUID userId;
     
     @NotBlank(message = "Account name is required")
     @Size(max = 100, message = "Account name cannot exceed 100 characters")

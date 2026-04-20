@@ -63,7 +63,7 @@ public class CategoryService {
         Category existing = categoryRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Category not found with id: " + id));
         
-        if (!existing.getName().equals(dto.getName()) && 
+        if (!existing.getName().equals(dto.getName()) &&
             categoryRepository.existsByName(dto.getName())) {
             throw new RuntimeException("Category already exists with name: " + dto.getName());
         }

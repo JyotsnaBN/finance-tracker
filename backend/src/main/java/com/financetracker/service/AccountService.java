@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -31,14 +32,14 @@ public class AccountService {
     }
     
     @Transactional(readOnly = true)
-    public List<AccountDTO> getAccountsByUserId(Long userId) {
+    public List<AccountDTO> getAccountsByUserId(UUID userId) {
         log.debug("Fetching accounts for user: {}", userId);
         List<Account> accounts = accountRepository.findByUserId(userId);
         return entityMapper.toAccountDTOList(accounts);
     }
     
     @Transactional(readOnly = true)
-    public AccountDTO getAccountById(Long id) {
+    public AccountDTO getAccountById(UUID id) {
         log.debug("Fetching account with id: {}", id);
         Account account = accountRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Account not found with id: " + id));
@@ -76,7 +77,7 @@ public class AccountService {
     }
     
     @Transactional
-    public AccountDTO updateAccount(Long id, AccountDTO dto) {
+    public AccountDTO updateAccount(UUID id, AccountDTO dto) {
         log.info("Updating account with id: {}", id);
         
         Account existing = accountRepository.findById(id)
@@ -95,7 +96,7 @@ public class AccountService {
     }
     
     @Transactional
-    public void deleteAccount(Long id) {
+    public void deleteAccount(UUID id) {
         log.info("Deleting account with id: {}", id);
         
         if (!accountRepository.existsById(id)) {

@@ -30,7 +30,8 @@ import lombok.Setter;
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class Transaction {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

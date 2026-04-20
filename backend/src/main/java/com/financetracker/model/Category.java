@@ -24,7 +24,8 @@ import lombok.Setter;
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class Category {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "name", nullable = false, unique = true)
