@@ -4,6 +4,7 @@ import com.financetracker.dto.CategoryDTO;
 import com.financetracker.model.Category;
 import com.financetracker.repository.CategoryRepository;
 import com.financetracker.util.EntityMapper;
+import com.financetracker.constants.CategoryKeywords;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -90,4 +93,52 @@ public class CategoryService {
         categoryRepository.deleteById(id);
         log.info("Category deleted: {}", id);
     }
+
+    @Transactional
+    public Category categorizeTransaction(String description) {
+        if (description == null || description.isEmpty()) {
+            log.debug("Empty description, returning default category");
+            return getOrCreateDefaultCategory();
+        }
+        
+        String lowerDesc = description.toLowerCase();
+        log.debug("Categorizing transaction: {}", description);
+        
+        for (Map.Entry<String, List<String>> entry : CategoryKeywords.CATEGORY_KEYWORDS.entrySet()) {
+            String categoryName = entry.getKey();
+            List<String> keywords = entry.getValue();
+            
+            for (String keyword : keywords) {
+                if (lowerDesc.contains(keyword)) {
+                    Optional<Category> category = categoryRepository.findByName(categoryName);
+                    if (category.isPresent()) {
+                        log.debug("Categorized '{}' as '{}' using keyword '{}'", 
+                            description, categoryName, keyword);
+                        return category.get();
+                    } else {
+                        log.warn("Category '{}' not found in database, using default", categoryName);
+                        return getOrCreateDefaultCategory();
+                    }
+                }
+            }
+        }
+        
+        log.debug("No category match found for: {}", description);
+        return getOrCreateDefaultCategory();
+    }
+
+    private Category getOrCreateDefaultCategory() {
+        return categoryRepository.findByName("Uncategorized")
+            .orElseGet(() -> {
+                log.info("Creating default 'Uncategorized' category");
+                Category category = Category.builder()
+                    .name("Uncategorized")
+                    .description("Transactions that could not be automatically categorized")
+                    .icon("question")
+                    .color("#808080")
+                    .build();
+                return categoryRepository.save(category);
+            });
+    }
+
 }

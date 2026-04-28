@@ -1,6 +1,7 @@
 package com.financetracker.service;
 
 import com.financetracker.dto.UserDTO;
+import com.financetracker.exception.DuplicateResourceException;
 import com.financetracker.model.User;
 import com.financetracker.repository.UserRepository;
 import com.financetracker.util.EntityMapper;
@@ -24,7 +25,7 @@ public class UserService {
     public UserDTO getUserById(UUID id) {
         log.debug("Fetching user with id: {}", id);
         User user = userRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+            .orElseThrow(() -> new RuntimeException("User not found"));
         return entityMapper.toUserDTO(user);
     }
     
@@ -32,7 +33,7 @@ public class UserService {
     public UserDTO getUserByEmail(String email) {
         log.debug("Fetching user with email: {}", email);
         User user = userRepository.findByEmail(email)
-            .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+            .orElseThrow(() -> new RuntimeException("User not found"));
         return entityMapper.toUserDTO(user);
     }
     
@@ -41,19 +42,24 @@ public class UserService {
         log.info("Creating user: {}", dto.getUsername());
         
         if (userRepository.existsByEmail(dto.getEmail())) {
-            throw new RuntimeException("Email already exists: " + dto.getEmail());
+            throw new DuplicateResourceException("A user with this email already exists");
         }
         
-        User user = User.builder()
-            .username(dto.getUsername())
-            .email(dto.getEmail())
-            .passwordHash(dto.getPassword())
-            .build();
-        
-        User saved = userRepository.save(user);
-        log.info("User created with id: {}", saved.getId());
-        
-        return entityMapper.toUserDTO(saved);
+        try {
+            User user = User.builder()
+                .username(dto.getUsername())
+                .email(dto.getEmail())
+                .passwordHash(dto.getPassword())
+                .build();
+            
+            User saved = userRepository.save(user);
+            log.info("User created successfully with id: {}", saved.getId());
+            
+            return entityMapper.toUserDTO(saved);
+        } catch (Exception e) {
+            log.error("Failed to create user {}: {}", dto.getUsername(), e.getMessage(), e);
+            throw new RuntimeException("Failed to create user", e);
+        }
     }
     
     @Transactional
@@ -61,20 +67,25 @@ public class UserService {
         log.info("Updating user with id: {}", id);
         
         User existing = userRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+            .orElseThrow(() -> new RuntimeException("User not found"));
         
-        if (!existing.getEmail().equals(dto.getEmail()) && 
+        if (!existing.getEmail().equals(dto.getEmail()) &&
             userRepository.existsByEmail(dto.getEmail())) {
-            throw new RuntimeException("Email already exists: " + dto.getEmail());
+            throw new DuplicateResourceException("A user with this email already exists");
         }
         
-        existing.setUsername(dto.getUsername());
-        existing.setEmail(dto.getEmail());
-        
-        User updated = userRepository.save(existing);
-        log.info("User updated: {}", id);
-        
-        return entityMapper.toUserDTO(updated);
+        try {
+            existing.setUsername(dto.getUsername());
+            existing.setEmail(dto.getEmail());
+            
+            User updated = userRepository.save(existing);
+            log.info("User updated successfully: {}", id);
+            
+            return entityMapper.toUserDTO(updated);
+        } catch (Exception e) {
+            log.error("Failed to update user {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Failed to update user", e);
+        }
     }
     
     @Transactional
@@ -82,10 +93,15 @@ public class UserService {
         log.info("Deleting user with id: {}", id);
         
         if (!userRepository.existsById(id)) {
-            throw new RuntimeException("User not found with id: " + id);
+            throw new RuntimeException("User not found");
         }
         
-        userRepository.deleteById(id);
-        log.info("User deleted: {}", id);
+        try {
+            userRepository.deleteById(id);
+            log.info("User deleted successfully: {}", id);
+        } catch (Exception e) {
+            log.error("Failed to delete user {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete user. The user may have associated data.", e);
+        }
     }
 }

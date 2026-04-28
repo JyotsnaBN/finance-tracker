@@ -27,6 +27,22 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     
     @Query("SELECT COUNT(a) FROM Account a WHERE a.user.id = :userId")
     long countByUserId(@Param("userId") UUID userId);
+
+    @Query("SELECT a FROM Account a WHERE a.user.id = :userId " +
+           "AND a.accountNumber LIKE %:last4Digits")
+    Optional<Account> findByUserIdAndAccountNumberEndingWith(
+        @Param("userId") UUID userId, 
+        @Param("last4Digits") String last4Digits
+    );
+
+    @Query("SELECT a FROM Account a WHERE a.user.id = :userId " +
+           "AND LOWER(a.bankName) = LOWER(:bankName) " +
+           "AND a.accountType = :accountType")
+    Optional<Account> findByUserIdAndBankNameAndAccountType(
+        @Param("userId") UUID userId,
+        @Param("bankName") String bankName,
+        @Param("accountType") AccountType accountType
+    );
     
     List<Account> findByUserIdAndIsActiveOrderByAccountNameAsc(UUID userId, Boolean isActive);
 }

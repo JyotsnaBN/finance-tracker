@@ -49,4 +49,38 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @Param("userId") UUID userId,
         @Param("start") Instant start, 
         @Param("end") Instant end);
+
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END " +
+           "FROM Transaction t WHERE t.account.user.id = :userId " +
+           "AND t.rawText = :rawText")
+    boolean existsByAccountUserIdAndRawText(
+        @Param("userId") UUID userId,
+        @Param("rawText") String rawText
+    );
+    
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END " +
+           "FROM Transaction t WHERE t.account.id = :accountId " +
+           "AND t.amount = :amount " +
+           "AND t.transactionType = :transactionType " +
+           "AND t.transactionDate = :transactionDate")
+    boolean existsByAccountIdAndAmountAndTypeAndDate(
+        @Param("accountId") UUID accountId,
+        @Param("amount") BigDecimal amount,
+        @Param("transactionType") TransactionType transactionType,
+        @Param("transactionDate") Instant transactionDate
+    );
+    
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END " +
+           "FROM Transaction t WHERE t.account.id = :accountId " +
+           "AND t.amount = :amount " +
+           "AND t.transactionType = :transactionType " +
+           "AND t.transactionDate BETWEEN :startDate AND :endDate")
+    boolean existsSimilarTransaction(
+        @Param("accountId") UUID accountId,
+        @Param("amount") BigDecimal amount,
+        @Param("transactionType") TransactionType transactionType,
+        @Param("startDate") Instant startDate,
+        @Param("endDate") Instant endDate
+    );
+    
 }

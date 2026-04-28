@@ -1,6 +1,7 @@
 package com.financetracker.service;
 
 import com.financetracker.dto.AccountDTO;
+import com.financetracker.exception.DuplicateResourceException;
 import com.financetracker.model.Account;
 import com.financetracker.model.User;
 import com.financetracker.repository.AccountRepository;
@@ -42,38 +43,41 @@ public class AccountService {
     public AccountDTO getAccountById(UUID id) {
         log.debug("Fetching account with id: {}", id);
         Account account = accountRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Account not found with id: " + id));
+            .orElseThrow(() -> new RuntimeException("Account not found"));
         return entityMapper.toAccountDTO(account);
     }
     
     @Transactional
     public AccountDTO createAccount(AccountDTO dto) {
-        log.info("Creating account: {}", dto.getAccountName());
+        log.info("Creating account: {} for user: {}", dto.getAccountName(), dto.getUserId());
         
-        // Validate user exists
         User user = userRepository.findById(dto.getUserId())
-            .orElseThrow(() -> new RuntimeException("User not found with id: " + dto.getUserId()));
+            .orElseThrow(() -> new RuntimeException("User not found"));
         
-        // Check if account number already exists
-        if (dto.getAccountNumber() != null && 
+        if (dto.getAccountNumber() != null &&
             accountRepository.existsByAccountNumber(dto.getAccountNumber())) {
-            throw new RuntimeException("Account already exists with number: " + dto.getAccountNumber());
+            throw new DuplicateResourceException("An account with this number already exists");
         }
         
-        Account account = Account.builder()
-            .user(user)
-            .accountName(dto.getAccountName())
-            .accountNumber(dto.getAccountNumber())
-            .bankName(dto.getBankName())
-            .accountType(dto.getAccountType())
-            .currentBalance(dto.getCurrentBalance() != null ? dto.getCurrentBalance() : BigDecimal.ZERO)
-            .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
-            .build();
-        
-        Account saved = accountRepository.save(account);
-        log.info("Account created with id: {}", saved.getId());
-        
-        return entityMapper.toAccountDTO(saved);
+        try {
+            Account account = Account.builder()
+                .user(user)
+                .accountName(dto.getAccountName())
+                .accountNumber(dto.getAccountNumber())
+                .bankName(dto.getBankName())
+                .accountType(dto.getAccountType())
+                .currentBalance(dto.getCurrentBalance() != null ? dto.getCurrentBalance() : BigDecimal.ZERO)
+                .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
+                .build();
+            
+            Account saved = accountRepository.save(account);
+            log.info("Account created successfully with id: {}", saved.getId());
+            
+            return entityMapper.toAccountDTO(saved);
+        } catch (Exception e) {
+            log.error("Failed to create account for user {}: {}", dto.getUserId(), e.getMessage(), e);
+            throw new RuntimeException("Failed to create account", e);
+        }
     }
     
     @Transactional
@@ -81,18 +85,23 @@ public class AccountService {
         log.info("Updating account with id: {}", id);
         
         Account existing = accountRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Account not found with id: " + id));
+            .orElseThrow(() -> new RuntimeException("Account not found"));
         
-        existing.setAccountName(dto.getAccountName());
-        existing.setBankName(dto.getBankName());
-        existing.setAccountType(dto.getAccountType());
-        existing.setCurrentBalance(dto.getCurrentBalance());
-        existing.setIsActive(dto.getIsActive());
-        
-        Account updated = accountRepository.save(existing);
-        log.info("Account updated: {}", id);
-        
-        return entityMapper.toAccountDTO(updated);
+        try {
+            existing.setAccountName(dto.getAccountName());
+            existing.setBankName(dto.getBankName());
+            existing.setAccountType(dto.getAccountType());
+            existing.setCurrentBalance(dto.getCurrentBalance());
+            existing.setIsActive(dto.getIsActive());
+            
+            Account updated = accountRepository.save(existing);
+            log.info("Account updated successfully: {}", id);
+            
+            return entityMapper.toAccountDTO(updated);
+        } catch (Exception e) {
+            log.error("Failed to update account {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Failed to update account", e);
+        }
     }
     
     @Transactional
@@ -100,10 +109,15 @@ public class AccountService {
         log.info("Deleting account with id: {}", id);
         
         if (!accountRepository.existsById(id)) {
-            throw new RuntimeException("Account not found with id: " + id);
+            throw new RuntimeException("Account not found");
         }
         
-        accountRepository.deleteById(id);
-        log.info("Account deleted: {}", id);
+        try {
+            accountRepository.deleteById(id);
+            log.info("Account deleted successfully: {}", id);
+        } catch (Exception e) {
+            log.error("Failed to delete account {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete account. It may be referenced by existing transactions.", e);
+        }
     }
 }
