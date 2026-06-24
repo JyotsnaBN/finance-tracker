@@ -29,10 +29,6 @@ import com.google.api.services.gmail.model.MessagePart;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
-import org.springframework.core.annotation.Order;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,53 +89,6 @@ public class EmailReaderService {
     @Autowired
     private DeliveryEmailParser deliveryEmailParser;
 
-    @EventListener(ApplicationReadyEvent.class)
-    @Order(2)
-    public void processDeliveryEmailsOnStartup() {
-        log.info("Scheduling delivery email processing to run 2 minutes after transaction processing...");
-        
-        new Thread(() -> {
-            try {
-                Thread.sleep(60000);
-                log.info("=== Starting delayed delivery email processing ===");
-                processDeliveryEmailsForAllUsers();
-                log.info("=== Delayed delivery email processing completed ===");
-            } catch (InterruptedException e) {
-                log.error("Delivery email processing was interrupted: {}", e.getMessage());
-                Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                log.error("Failed to process delivery emails on startup: {}", e.getMessage());
-                log.debug("Startup delivery processing error details:", e);
-            }
-        }).start();
-    }
-
-    @Scheduled(fixedRate = 3600000)
-    public void processDeliveryEmailsForAllUsers() {
-        log.info("Starting delivery email processing for all users...");
-        
-        List<UserEmailConfig> activeConfigs = emailConfigRepository.findByIsActiveTrue();
-        
-        if (activeConfigs.isEmpty()) {
-            log.info("No active email configurations found for delivery processing");
-            return;
-        }
-        
-        log.info("Found {} active email configurations for delivery processing", activeConfigs.size());
-        
-        for (UserEmailConfig config : activeConfigs) {
-            try {
-                processUserDeliveryEmails(config);
-            } catch (Exception e) {
-                log.error("Failed to process delivery emails for user {}: {}",
-                    config.getUser().getId(), e.getMessage());
-                log.debug("Full error details:", e);
-            }
-        }
-        
-        log.info("Delivery email processing complete");
-    }
-
     private void processUserDeliveryEmails(UserEmailConfig config) throws Exception {
         User user = config.getUser();
         log.info("=== Processing delivery emails for user: {} ({}) ===", user.getId(), config.getEmailAddress());
@@ -198,9 +147,9 @@ public class EmailReaderService {
                 }
                 
                 log.info("Email {} IS a delivery email - parsing...", message.getId());
-                log.info(emailContent);
+                log.debug("Email content length: {} characters", emailContent.length());
                 
-                Instant emailReceivedDate = fullMessage.getInternalDate() != null 
+                Instant emailReceivedDate = fullMessage.getInternalDate() != null
                     ? Instant.ofEpochMilli(fullMessage.getInternalDate())
                     : null;
 
@@ -455,20 +404,44 @@ public class EmailReaderService {
         }
         return GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
     }
-    
-    @Scheduled(fixedRate = 3600000)
+
+    public void processDeliveryEmailsForAllUsers() {
+        log.info("Starting delivery email processing for all users...");
+
+        List<UserEmailConfig> activeConfigs = emailConfigRepository.findByIsActiveTrue();
+
+        if (activeConfigs.isEmpty()) {
+            log.info("No active email configurations found for delivery processing");
+            return;
+        }
+
+        log.info("Found {} active email configurations for delivery processing", activeConfigs.size());
+
+        for (UserEmailConfig config : activeConfigs) {
+            try {
+                processUserDeliveryEmails(config);
+            } catch (Exception e) {
+                log.error("Failed to process delivery emails for user {}: {}",
+                    config.getUser().getId(), e.getMessage());
+                log.debug("Full error details:", e);
+            }
+        }
+
+        log.info("Delivery email processing complete");
+    }
+
     public void readTransactionEmailsForAllUsers() {
         log.info("Starting multi-user Gmail transaction check...");
-        
+
         List<UserEmailConfig> activeConfigs = emailConfigRepository.findByIsActiveTrue();
-        
+
         if (activeConfigs.isEmpty()) {
             log.info("No active email configurations found");
             return;
         }
-        
+
         log.info("Found {} active email configurations", activeConfigs.size());
-        
+
         for (UserEmailConfig config : activeConfigs) {
             try {
                 processUserEmails(config);
@@ -478,10 +451,17 @@ public class EmailReaderService {
                 log.debug("Full error details for user {}:", config.getUser().getId(), e);
             }
         }
-        
+
         log.info("Multi-user Gmail processing complete");
     }
-    
+
+    public void processAllEmails() {
+        log.info("Starting chained email processing workflow");
+        readTransactionEmailsForAllUsers();
+        processDeliveryEmailsForAllUsers();
+        log.info("Chained email processing workflow complete");
+    }
+        
     private void processUserEmails(UserEmailConfig config) throws Exception {
         User user = config.getUser();
         log.info("Processing emails for user: {} ({})", user.getId(), config.getEmailAddress());

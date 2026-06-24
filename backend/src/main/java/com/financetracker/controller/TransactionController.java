@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,11 +25,18 @@ public class TransactionController {
     
     @GetMapping
     public ResponseEntity<List<TransactionDTO>> getAllTransactions() {
-        return ResponseEntity.ok(transactionService.getAllTransactions());
+        // Get transactions for authenticated user only
+        UUID authenticatedUserId = getAuthenticatedUserId();
+        return ResponseEntity.ok(transactionService.getTransactionsByUserId(authenticatedUserId));
     }
     
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<TransactionDTO>> getTransactionsByUserId(@PathVariable UUID userId) {
+        // Verify authenticated user matches requested userId
+        UUID authenticatedUserId = getAuthenticatedUserId();
+        if (!authenticatedUserId.equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         return ResponseEntity.ok(transactionService.getTransactionsByUserId(userId));
     }
 
@@ -59,5 +68,18 @@ public class TransactionController {
     public ResponseEntity<Void> deleteTransaction(@PathVariable Long id) {
         transactionService.deleteTransaction(id);
         return ResponseEntity.noContent().build();
+    }
+    
+    /**
+     * Extract authenticated user ID from JWT token in SecurityContext
+     */
+    private UUID getAuthenticatedUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("User not authenticated");
+        }
+        
+        String userIdStr = authentication.getName();
+        return UUID.fromString(userIdStr);
     }
 }

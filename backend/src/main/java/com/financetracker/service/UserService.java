@@ -8,6 +8,7 @@ import com.financetracker.util.EntityMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import java.util.UUID;
 public class UserService {
     private final UserRepository userRepository;
     private final EntityMapper entityMapper;
+    private final PasswordEncoder passwordEncoder;
     
     @Transactional(readOnly = true)
     public UserDTO getUserById(UUID id) {
@@ -49,7 +51,7 @@ public class UserService {
             User user = User.builder()
                 .username(dto.getUsername())
                 .email(dto.getEmail())
-                .passwordHash(dto.getPassword())
+                .passwordHash(passwordEncoder.encode(dto.getPassword()))
                 .build();
             
             User saved = userRepository.save(user);

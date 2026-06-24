@@ -6,12 +6,18 @@ import com.financetracker.model.User;
 import com.financetracker.model.UserEmailConfig;
 import com.financetracker.repository.UserEmailConfigRepository;
 import com.financetracker.repository.UserRepository;
+import com.financetracker.security.JwtTokenProvider;
 import com.financetracker.service.GoogleOAuthService;
+import com.financetracker.service.EmailReaderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpSession;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -31,14 +37,26 @@ public class EmailConfigController {
     @Autowired
     private UserEmailConfigRepository emailConfigRepository;
     
+    @Autowired
+    private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private EmailReaderService emailReaderService;
+    
     @PostMapping("/connect")
-    public ResponseEntity<OAuthUrlResponseDTO> initiateConnection(@RequestParam UUID userId) {
-        log.info("Initiating email connection for user: {}", userId);
+    public ResponseEntity<?> initiateConnection(HttpSession session) {
+        UUID authenticatedUserId = getAuthenticatedUserId();
+        log.info("Initiating email connection for user: {}", authenticatedUserId);
         
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(authenticatedUserId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        String authUrl = oauthService.generateAuthorizationUrl(userId);
+        // Generate secure random state token and store in session
+        String stateToken = UUID.randomUUID().toString();
+        session.setAttribute("oauth_state_" + authenticatedUserId, stateToken);
+        session.setAttribute("oauth_user_id", authenticatedUserId.toString());
+        
+        String authUrl = oauthService.generateAuthorizationUrl(stateToken);
         
         return ResponseEntity.ok(OAuthUrlResponseDTO.builder()
                 .authorizationUrl(authUrl)
@@ -49,27 +67,49 @@ public class EmailConfigController {
     @GetMapping("/oauth/callback")
     public ResponseEntity<String> handleOAuthCallback(
             @RequestParam String code,
-            @RequestParam String state) {
+            @RequestParam String state,
+            HttpSession session) {
         
-        log.info("Handling OAuth callback for user state: {}", state);
+        log.info("Handling OAuth callback with state token");
         
-        UUID userId = UUID.fromString(state);
+        // Retrieve user ID from session
+        String userIdStr = (String) session.getAttribute("oauth_user_id");
+        if (userIdStr == null) {
+            log.error("OAuth callback: No user ID in session");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Invalid OAuth session. Please try again.");
+        }
+        
+        UUID userId = UUID.fromString(userIdStr);
+        
+        // Validate state token against session
+        String expectedState = (String) session.getAttribute("oauth_state_" + userId);
+        if (expectedState == null || !expectedState.equals(state)) {
+            log.error("OAuth callback: State token mismatch for user: {}", userId);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Invalid state token. Possible CSRF attack detected.");
+        }
+        
+        // Clear session attributes after validation
+        session.removeAttribute("oauth_state_" + userId);
+        session.removeAttribute("oauth_user_id");
+        
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
         UserEmailConfig config = oauthService.exchangeCodeForTokens(code, user);
         
-        log.info("Successfully connected email: {} for user: {}",
-                config.getEmailAddress(), userId);
+        log.info("Successfully connected email for user: {}", userId);
         
         return ResponseEntity.ok("Email account connected successfully! You can close this window.");
     }
     
     @GetMapping("/status")
-    public ResponseEntity<List<EmailConfigDTO>> getEmailConfigs(@RequestParam UUID userId) {
-        log.info("Fetching email configs for user: {}", userId);
+    public ResponseEntity<?> getEmailConfigs() {
+        UUID authenticatedUserId = getAuthenticatedUserId();
+        log.info("Fetching email configs for user: {}", authenticatedUserId);
         
-        List<UserEmailConfig> configs = emailConfigRepository.findByUserId(userId);
+        List<UserEmailConfig> configs = emailConfigRepository.findByUserId(authenticatedUserId);
         
         List<EmailConfigDTO> dtos = configs.stream()
                 .map(this::toDTO)
@@ -79,31 +119,44 @@ public class EmailConfigController {
     }
     
     @DeleteMapping("/disconnect")
-    public ResponseEntity<Void> disconnectEmail(
-            @RequestParam UUID userId,
-            @RequestParam String emailAddress) {
-        
-        log.info("Disconnecting email: {} for user: {}", emailAddress, userId);
+    public ResponseEntity<?> disconnectEmail(@RequestParam String emailAddress) {
+        UUID authenticatedUserId = getAuthenticatedUserId();
+        log.info("Disconnecting email: {} for user: {}", emailAddress, authenticatedUserId);
         
         UserEmailConfig config = emailConfigRepository
-                .findByUserIdAndEmailAddress(userId, emailAddress)
+                .findByUserIdAndEmailAddress(authenticatedUserId, emailAddress)
                 .orElseThrow(() -> new RuntimeException("Email configuration not found"));
         
         config.setIsActive(false);
         emailConfigRepository.save(config);
         
-        log.info("Email {} disconnected successfully for user: {}", emailAddress, userId);
+        log.info("Email {} disconnected successfully for user: {}", emailAddress, authenticatedUserId);
         return ResponseEntity.ok().build();
     }
     
     @PostMapping("/sync")
-    public ResponseEntity<String> triggerManualSync(
-            @RequestParam UUID userId,
-            @RequestParam String emailAddress) {
+    public ResponseEntity<String> triggerManualSync() {
+        UUID authenticatedUserId = getAuthenticatedUserId();
+        log.info("Manual sync triggered by user: {}", authenticatedUserId);
+
+        emailReaderService.processAllEmails();
+        return ResponseEntity.ok("Sync completed");
+    }
         
-        log.info("Manual sync triggered for email: {} user: {}", emailAddress, userId);
+    /**
+     * Extract authenticated user ID from JWT token in SecurityContext
+     */
+    private UUID getAuthenticatedUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("User not authenticated");
+        }
         
-        return ResponseEntity.ok("Sync initiated");
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UUID userId) {
+            return userId;
+        }
+        return UUID.fromString(authentication.getName());
     }
     
     private EmailConfigDTO toDTO(UserEmailConfig config) {

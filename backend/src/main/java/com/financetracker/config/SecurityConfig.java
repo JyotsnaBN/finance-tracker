@@ -25,10 +25,11 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/email/oauth/callback").permitAll()
-                .anyRequest().authenticated()
-            )
+            .requestMatchers("/api/auth/**").permitAll()
+            .requestMatchers("/api/email/oauth/callback").permitAll()
+            .requestMatchers("/api/internal/email-processing/**").permitAll()
+            .anyRequest().authenticated()
+        )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         
         return http.build();

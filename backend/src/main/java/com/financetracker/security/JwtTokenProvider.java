@@ -15,7 +15,7 @@ import java.util.UUID;
 @Slf4j
 public class JwtTokenProvider {
     
-    @Value("${jwt.secret:your-256-bit-secret-key-change-this-in-production-minimum-32-characters}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
     
     @Value("${jwt.expiration:86400000}")

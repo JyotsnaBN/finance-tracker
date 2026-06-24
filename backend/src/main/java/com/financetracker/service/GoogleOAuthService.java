@@ -35,17 +35,16 @@ public class GoogleOAuthService {
     private static final NetHttpTransport HTTP_TRANSPORT = new NetHttpTransport();
     private static final GsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
     
-    public String generateAuthorizationUrl(UUID userId) {
+    public String generateAuthorizationUrl(String stateToken) {
         try {
             GoogleAuthorizationCodeFlow flow = createFlow();
-            String state = userId.toString();
             
             return flow.newAuthorizationUrl()
                     .setRedirectUri(oauthConfig.getRedirectUri())
-                    .setState(state)
+                    .setState(stateToken)
                     .build();
         } catch (Exception e) {
-            log.error("Failed to generate OAuth authorization URL for user {}: {}", userId, e.getMessage(), e);
+            log.error("Failed to generate OAuth authorization URL: {}", e.getMessage(), e);
             throw new OAuthException("Failed to initiate email connection", e);
         }
     }
